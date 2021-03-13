@@ -44,20 +44,21 @@ app = Flask(__name__)
 @app.route("/")
 def welcome():
     """List all available api routes."""
-    
+
     return (
-        f"<h2>Available Routes for Measurements Table in 'hawaii.sqlite' Database:</h2><br/>"
+        f"<h2>Available Routes for Measurements Table in 'hawaii.sqlite' Database:</h2>"
 
-        f'<h3><a href="/api/v1.0/station">/api/v1.0/station</a></h3><br/>'
-        f'<h3><a href="/api/v1.0/precipitation">/api/v1.0/precipitation</a><br/>'
-        f'<a href="/api/v1.0/tobs">/api/v1.0/tobs</a><br/>'
+        f'<h3><a href="/api/v1.0/station">/api/v1.0/station</a></h3>'
+        f'<h3><a href="/api/v1.0/precipitation">/api/v1.0/precipitation</a></h3>'
+        f'<h3><a href="/api/v1.0/tobs">/api/v1.0/tobs</a></h3><br/>'
 
-        f"<p><h2>Routes for Measurements Dates:</h2></p>"
+        f"<h2><h2>Routes for Measurement Dates:</h2>"
 
-        f'<h3><a href="/api/v1.0/<start>">/api/v1.0/<start></a></h3><br/>'
+        f'<h3><a href="/api/v1.0/<start>">/api/v1.0/<start></a></h3>'
+        f'<h3><a href="/api/v1.0/<start>/<end>">/api/v1.0/<start>/<end></a></h3>'
 
         f"<h3>Please pic the dates between '2010-01-01' and '2017-08-23'</h3>"
-        f"<h3>Supported Formats : (2010-01-01, 2010.01.01, 2010 01 01, 2010%01%01)</h3><br/><br/>"
+        f"<p><t><b>Supported Formats :</b> 2010-01-01, 2010.01.01, 2010 01 01, 2010%01%01</t></p><br/><br/>"
 
     )
 
@@ -189,9 +190,11 @@ def measurement_by_date(start):
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
+    #remove special characters and spaces from start date
     clean_start_date = re.sub(r'[^0-9]+', '-', start)
     print(f"start = {start} \n clean_start: {clean_start_date}")
 
+    #Create a date object to check if start date supplied is in the table
     measuremet_date_obj = session.query(Measurement.date).all()
     Mdatemeasuremet_date = list(np.ravel(measuremet_date_obj)) 
     
@@ -200,6 +203,7 @@ def measurement_by_date(start):
         tobs_avg = func.avg(Measurement.tobs)
         tobs_max = func.max(Measurement.tobs)
 
+        #Query the DB for above functions where for dates between the start and end date inclusive
         measurement_date = session.query(tobs_min, tobs_avg, tobs_max).\
                                          filter(Measurement.date >= clean_start_date).first()
         
@@ -208,6 +212,58 @@ def measurement_by_date(start):
 
         return jsonify({"tobs_min": measurement_date[0] , "tobs_avg": measurement_date[1] , "tobs_max": measurement_date[2]})
 
+    # If start date not in the table,
+    else:
+        return jsonify({"error": f"Start Date : {clean_start_date} not found!"}), 404
+
+
+# API route for start and end dates
+
+@app.route("/api/v1.0/<start>/<end>")
+def measurement_by_dates(start,end):
+    """Return a JSON list of the minimum temperature, the average temperature, and the max temperature 
+        for dates between the start and end date inclusive.."""
+
+    print(start)
+    print(end)
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+    
+    #remove special characters and spaces on both start and end date
+    clean_start_date = re.sub(r'[^0-9]+', '-', start)
+    clean_end_date = re.sub(r'[^0-9]+', '-', end)
+
+    print(f"start = {start} \n clean_start: {clean_start_date}")
+    print(f"End = {end} \n clean_start: {clean_end_date}")
+
+    #Create a date object to check if start and end dates supplied are in the table
+    measuremet_date_obj = session.query(Measurement.date).all()
+    Mdatemeasuremet_date = list(np.ravel(measuremet_date_obj)) 
+    
+    if clean_start_date in Mdatemeasuremet_date:
+        if clean_end_date in Mdatemeasuremet_date:
+
+            # Create a a funciton to calculate min , max and avg tobs
+            tobs_min = func.min(Measurement.tobs)
+            tobs_avg = func.avg(Measurement.tobs)
+            tobs_max = func.max(Measurement.tobs)
+
+            #Query the DB for above functions where for dates between the start and end date inclusive
+            measurement_dates = session.query(tobs_min, tobs_avg, tobs_max).\
+                                         filter(Measurement.date >= clean_start_date).\
+                                         filter(Measurement.date <= clean_end_date).first()
+        
+            # Close Session
+            session.close()
+
+            return jsonify({"tobs_min": measurement_dates[0] , "tobs_avg": measurement_dates[1] , "tobs_max": measurement_dates[2]})
+
+        #if end date not in the table,
+        else:
+            return jsonify({"error": f"End Date : {clean_end_date} not found!"}), 404
+
+    # If start date not in the table
     else:
         return jsonify({"error": f"Start Date : {clean_start_date} not found!"}), 404
 
