@@ -46,6 +46,8 @@ def welcome():
     """List all available api routes."""
 
     return (
+        f'<body style=background-color:#b7b6e7;>'
+        
         f"<h2>Available Routes for Measurements Table in 'hawaii.sqlite' Database:</h2>"
 
         f'<h3><a href="/api/v1.0/station">/api/v1.0/station</a></h3>'
@@ -58,8 +60,9 @@ def welcome():
         f'<h3><a href="/api/v1.0/<start>/<end>">/api/v1.0/<start>/<end></a></h3>'
 
         f"<h3>Please pic the dates between '2010-01-01' and '2017-08-23'</h3>"
-        f"<p><t><b>Supported Formats :</b> 2010-01-01, 2010.01.01, 2010 01 01, 2010%01%01</t></p><br/><br/>"
-
+        f"<p><t><b>Supported Formats :</b> Year-m-d, Year.m.d, Year m d, Year%m%d</t></br><b>Eg:</b> 2010 08.23  , 2010-08% 23 </p><br/>"
+        
+        '</body>'
     )
 
 #################################################   #################################################
@@ -103,14 +106,15 @@ date_12months_ago
 def precipitation():
     
     """Return a list of Measurement data ie, Date, and Precipitation of each Measurement
-     in the form of Dictionary """
+     in the form of Dictionary. """
    
     
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
     # Perform a query to retrieve the data and precipitation scores
-    prcp_date = session.query(Measurement.date, Measurement.prcp).all()
+    prcp_date = session.query(Measurement.date, Measurement.prcp).\
+                              filter(Measurement.date >= date_12months_ago).all()
 
     # Make sure t close the session
     session.close()
@@ -160,7 +164,10 @@ def tobs():
                                        order_by(station_count.desc()).first()
     
     most_active_station = most_active_st_qry[0]
-    
+
+    # print most active station
+    print("The most active station : {}".format(most_active_station))
+
     # Using the most active station id,
     #Query the dates and temperature observations of the most active station for the last year of data.
     station_last_12mon_date_temp = session.query(Measurement.date, Measurement.tobs).\
@@ -170,13 +177,20 @@ def tobs():
     # Close Session
     session.close()
     
+    ''' If only 'TOBS' for last year  is needed , Use below code
     #Get the list of temperature observations (TOBS) for the previous year.
     station_last_12mon_temp = [item[1] for item in station_last_12mon_date_temp ]
     
     # Convert list of tuples into normal list
-    active_station_tobs = list(np.ravel(station_last_12mon_temp)) 
+    active_station_tobs = list(np.ravel(station_last_12mon_temp)) '''
+
+    measurement_date_temp = []
+    for date, temp in station_last_12mon_date_temp:
+        prcp_dict = {}
+        prcp_dict[f'{date}'] = temp
+        measurement_date_temp.append(prcp_dict)
     
-    return jsonify(active_station_tobs)
+    return jsonify(measurement_date_temp)
 
 
 # API route for start
@@ -186,7 +200,7 @@ import re
 def measurement_by_date(start):
     """Return a JSON list of the minimum temperature, the average temperature, and the max temperature 
         for a given start for all dates greater than and equal to the start date."""
-    print(start)
+    
     # Create our session (link) from Python to the DB
     session = Session(engine)
 
@@ -223,9 +237,7 @@ def measurement_by_date(start):
 def measurement_by_dates(start,end):
     """Return a JSON list of the minimum temperature, the average temperature, and the max temperature 
         for dates between the start and end date inclusive.."""
-
-    print(start)
-    print(end)
+   
 
     # Create our session (link) from Python to the DB
     session = Session(engine)
